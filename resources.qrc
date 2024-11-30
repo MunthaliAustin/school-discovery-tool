@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/additional_schools" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>

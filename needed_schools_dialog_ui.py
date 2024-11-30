@@ -1,0 +1,47 @@
+from PyQt5 import QtCore, QtGui, QtWidgets
+
+class Ui_neededSchoolsDialog(object):
+    def setupUi(self, neededSchoolsDialog):
+        neededSchoolsDialog.setObjectName("neededSchoolsDialog")
+        neededSchoolsDialog.resize(641, 300)
+        self.label_cityLayer = QtWidgets.QLabel(neededSchoolsDialog)
+        self.label_cityLayer.setGeometry(QtCore.QRect(10, 10, 101, 20))
+        self.label_cityLayer.setObjectName("label_cityLayer")
+        self.comboBox_cityLayer = QtWidgets.QComboBox(neededSchoolsDialog)
+        self.comboBox_cityLayer.setGeometry(QtCore.QRect(120, 10, 380, 25))
+        self.comboBox_cityLayer.setObjectName("comboBox_cityLayer")
+        self.label_schoolsLayer = QtWidgets.QLabel(neededSchoolsDialog)
+        self.label_schoolsLayer.setGeometry(QtCore.QRect(10, 90, 101, 20))
+        self.label_schoolsLayer.setObjectName("label_schoolsLayer")
+        self.comboBox_schoolsLayer = QtWidgets.QComboBox(neededSchoolsDialog)
+        self.comboBox_schoolsLayer.setGeometry(QtCore.QRect(120, 90, 380, 25))
+        self.comboBox_schoolsLayer.setObjectName("comboBox_schoolsLayer")
+        self.label_population = QtWidgets.QLabel(neededSchoolsDialog)
+        self.label_population.setGeometry(QtCore.QRect(10, 50, 101, 20))
+        self.label_population.setObjectName("label_population")
+        self.comboBox_populationField = QtWidgets.QComboBox(neededSchoolsDialog)
+        self.comboBox_populationField.setGeometry(QtCore.QRect(120, 50, 380, 25))
+        self.comboBox_populationField.setObjectName("comboBox_populationField")
+        self.label_peoplePerSchool = QtWidgets.QLabel(neededSchoolsDialog)
+        self.label_peoplePerSchool.setGeometry(QtCore.QRect(10, 130, 101, 20))
+        self.label_peoplePerSchool.setObjectName("label_peoplePerSchool")
+        self.spinBox_peoplePerSchool = QtWidgets.QSpinBox(neededSchoolsDialog)
+        self.spinBox_peoplePerSchool.setGeometry(QtCore.QRect(120, 130, 100, 25))
+        self.spinBox_peoplePerSchool.setMinimum(1)
+        self.spinBox_peoplePerSchool.setMaximum(100000)
+        self.spinBox_peoplePerSchool.setProperty("value", 2000)
+        self.spinBox_peoplePerSchool.setObjectName("spinBox_peoplePerSchool")
+        self.button_execute = QtWidgets.QPushButton(neededSchoolsDialog)
+        self.button_execute.setGeometry(QtCore.QRect(10, 180, 100, 30))
+        self.button_execute.setObjectName("button_execute")
+
+        self.retranslateUi(neededSchoolsDialog)
+        QtCore.QMetaObject.connectSlotsByName(neededSchoolsDialog)
+
+    def retranslateUi(self, neededSchoolsDialog):
+        _translate = QtCore.QCoreApplication.translate
+        self.label_cityLayer.setText(_translate("neededSchoolsDialog", "City Layer"))
+        self.label_schoolsLayer.setText(_translate("neededSchoolsDialog", "Schools Layer"))
+        self.label_population.setText(_translate("neededSchoolsDialog", "Population Field"))
+        self.label_peoplePerSchool.setText(_translate("neededSchoolsDialog", "People Per School"))
+        self.button_execute.setText(_translate("neededSchoolsDialog", "Compute"))

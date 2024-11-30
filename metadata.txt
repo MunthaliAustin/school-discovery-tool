@@ -1,0 +1,42 @@
+[general]
+name=Needed Schools
+qgisMinimumVersion=3.0
+description=This plugin accesses the number of schools required to added to a particular school depeding on the popln
+version=0.1
+author=bsc-inf-02-20
+email=bsc-inf-02-20@unima.ac.mw
+
+about=this plugin calculates the number of schools to be added to be added in each area of a city
+
+tracker=http://bugs
+repository=http://repo
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=python
+
+homepage=http://homepage
+category=Vector
+icon=icon.png
+# experimental flag
+experimental=True
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
