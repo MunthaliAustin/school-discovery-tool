@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QDialog
 from PyQt5.QtCore import QVariant
-from qgis.core import QgsProject, QgsVectorLayer, QgsField, QgsFeature, QgsGeometry
+from PyQt5.QtGui import QFont
+from qgis.core import QgsProject, QgsVectorLayer, QgsField, QgsFeature, QgsGeometry, QgsPalLayerSettings, QgsTextFormat, QgsVectorLayerSimpleLabeling
 import psycopg2
 from psycopg2 import sql
 from .needed_schools_dialog_ui import Ui_neededSchoolsDialog
@@ -72,7 +73,7 @@ class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
             self.display_error(f"Error retrieving population fields: {error}")
 
     def determine_needed_schools(self):
-        """Calculate the required number of schools based on the population and students per school, and generate a QGIS layer."""
+        """Calculate the required number of schools based on the population and students per school, and generate a QGIS layer with labels."""
         try:
             population_layer_name = self.comboBox_cityLayer.currentText()
             schools_layer_name = self.comboBox_schoolsLayer.currentText()
@@ -104,10 +105,11 @@ class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
             provider = results_layer.dataProvider()
 
             provider.addAttributes([
-                QgsField("Area", QVariant.String),
-                QgsField("Required_Schools", QVariant.Int),
-                QgsField("Current_Schools", QVariant.Int),
-                QgsField("Added_Schools", QVariant.Int)
+                QgsField("Location_Name", QVariant.String),
+                QgsField("Expected_Schools", QVariant.Int),
+                QgsField("current_number_of_schools", QVariant.Int),
+                QgsField("Schools_that_are_supposed_to_be_built", QVariant.Int),
+                QgsField("Label", QVariant.String)
             ])
             results_layer.updateFields()
 
@@ -126,12 +128,14 @@ class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
                 """).format(
                     schools_layer=sql.Identifier(schools_layer_name)
                 ), [geom_wkt])
-                current_schools = cursor.fetchone()[0]
-                added_schools = max(0, round(required_schools - current_schools))
+                current_number_of_schools = cursor.fetchone()[0]
+                schools_that_are_supposed_to_be_built = max(0, round(required_schools - current_number_of_schools))
+
+                label_text = f"{area_name} = {schools_that_are_supposed_to_be_built}"
 
                 feat = QgsFeature()
                 feat.setGeometry(geom)
-                feat.setAttributes([area_name, required_schools, current_schools, added_schools])
+                feat.setAttributes([area_name, required_schools, current_number_of_schools, schools_that_are_supposed_to_be_built, label_text])
                 features.append(feat)
 
             provider.addFeatures(features)
@@ -139,8 +143,23 @@ class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
             cursor.close()
             connection.close()
 
+            # Configure labeling
+            label_settings = QgsPalLayerSettings()
+            label_settings.fieldName = "Label"
+            label_settings.placement = QgsPalLayerSettings.AroundPoint
+            label_settings.enabled = True
+
+            text_format = QgsTextFormat()
+            text_format.setFont(QFont("Arial", 10))
+            text_format.setSize(10)
+            label_settings.setFormat(text_format)
+
+            results_layer.setLabelsEnabled(True)
+            results_layer.setLabeling(QgsVectorLayerSimpleLabeling(label_settings))
+            results_layer.triggerRepaint()
+
             QgsProject.instance().addMapLayer(results_layer)
-            self.display_info("Required schools calculation completed and results layer added to the QGIS project.")
+            self.display_info("Required schools calculation completed and results layer with labels added to the QGIS project.")
 
         except (Exception, psycopg2.DatabaseError) as error:
             self.display_error(f"Error during calculation: {error}")
