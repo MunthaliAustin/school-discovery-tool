@@ -89,7 +89,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Max # of Students</string>
+    <string>Max # of Popln</string>
    </property>
   </widget>
   <widget class="QLineEdit" name="lineEdit_peoplePerSchool">

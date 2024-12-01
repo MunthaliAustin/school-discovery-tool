@@ -1,119 +1,147 @@
 from PyQt5.QtWidgets import QDialog
-from .needed_schools_dialog_ui import Ui_neededSchoolsDialog
-from qgis.core import QgsProject
-from qgis import processing
+from PyQt5.QtCore import QVariant
+import psycopg2
+from psycopg2 import sql
 import csv
 import os
+from .needed_schools_dialog_ui import Ui_neededSchoolsDialog
 
 class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
     def __init__(self, parent=None):
-        """Initialize the QDialog and set up the UI."""
+        """Initialize the dialog and set up the UI."""
         super().__init__(parent)
         self.setupUi(self)
 
-        # Populate combo boxes with available layers
-        self.populate_layer_comboboxes()
+        # Populate combo boxes with available tables from the database
+        self.populate_table_comboboxes()
 
         # Connect the city layer combo box to update population field combo box
         self.comboBox_cityLayer.currentIndexChanged.connect(self.update_population_fields)
 
         # Connect the execute button to calculate the required schools
-        self.button_execute.clicked.connect(self.compute_needed_schools)
+        self.button_execute.clicked.connect(self.determine_needed_schools)
 
-    def populate_layer_comboboxes(self):
-        """Populate the combo boxes with available layers."""
-        # Retrieve the list of layer names from the current QGIS project
-        layers_list = [layer.name() for layer in QgsProject.instance().mapLayers().values()]
+    def connect_to_database(self):
+        """Establish a connection to the PostgreSQL database."""
+        return psycopg2.connect(database="analysis", user="postgres", password="Munthali56@", host="localhost", port="5432")
 
-        # Clear existing items in the combo boxes
-        self.comboBox_cityLayer.clear()
-        self.comboBox_schoolsLayer.clear()
+    def populate_table_comboboxes(self):
+        """Populate the combo boxes with available tables from the database."""
+        try:
+            connection = self.connect_to_database()
+            cursor = connection.cursor()
+            cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+            table_names = [row[0] for row in cursor.fetchall()]
 
-        # Add placeholder text to combo boxes
-        self.comboBox_cityLayer.addItem("Choose a city layer")
-        self.comboBox_schoolsLayer.addItem("Choose schools layer")
+            # Clear existing items in the combo boxes
+            self.comboBox_cityLayer.clear()
+            self.comboBox_schoolsLayer.clear()
 
-        # Add available layer names to each combo box
-        self.comboBox_cityLayer.addItems(layers_list)
-        self.comboBox_schoolsLayer.addItems(layers_list)
+            # Add placeholder text to combo boxes
+            self.comboBox_cityLayer.addItem("Select a population layer")
+            self.comboBox_schoolsLayer.addItem("Select school (point) layer")
+
+            # Add available table names to each combo box
+            self.comboBox_cityLayer.addItems(table_names)
+            self.comboBox_schoolsLayer.addItems(table_names)
+
+            cursor.close()
+            connection.close()
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.display_error(f"Error connecting to the database: {error}")
 
     def update_population_fields(self):
-        """Populate the population fields combo box based on the selected city layer."""
-        # Clear the population field combo box
-        self.comboBox_populationField.clear()
-        self.comboBox_populationField.addItem("Choose a population field")
+        """Populate the population fields combo box based on the selected population layer."""
+        try:
+            self.comboBox_populationField.clear()
+            self.comboBox_populationField.addItem("Select a population field")
 
-        # Get the selected city layer name
-        selected_city_layer = self.comboBox_cityLayer.currentText()
-        print(f"Chosen City Layer: {selected_city_layer}")  # Debug statement
+            population_layer_name = self.comboBox_cityLayer.currentText()
+            print(f"Selected Population Layer: {population_layer_name}")  # Debug statement
 
-        # If a valid city layer is selected, populate the population fields
-        if selected_city_layer != "Choose a city layer":
-            city_layer = QgsProject.instance().mapLayersByName(selected_city_layer)[0]
-            population_fields = [field.name() for field in city_layer.fields()]
-            print(f"Population Fields: {population_fields}")  # Debug statement
-            self.comboBox_populationField.addItems(population_fields)
+            if population_layer_name != "Select a population layer":
+                connection = self.connect_to_database()
+                cursor = connection.cursor()
+                cursor.execute(sql.SQL("SELECT column_name FROM information_schema.columns WHERE table_name = %s"), [population_layer_name])
+                field_names = [row[0] for row in cursor.fetchall()]
+                print(f"Available Fields: {field_names}")  # Debug statement
+                self.comboBox_populationField.addItems(field_names)
 
-    def compute_needed_schools(self):
-        """Calculate the needed number of schools based on the population and people per school."""
-        # Retrieve the selected layers
-        selected_city_layer = self.comboBox_cityLayer.currentText()
-        selected_schools_layer = self.comboBox_schoolsLayer.currentText()
+                cursor.close()
+                connection.close()
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.display_error(f"Error retrieving population fields: {error}")
 
-        # Check if valid layers are selected
-        if selected_city_layer == "Choose a city layer" or selected_schools_layer == "Choose schools layer":
-            self.display_error("Please choose both the city and schools layers.")
-            return
+    def determine_needed_schools(self):
+        """Calculate the required number of schools based on the population and students per school."""
+        try:
+            population_layer_name = self.comboBox_cityLayer.currentText()
+            schools_layer_name = self.comboBox_schoolsLayer.currentText()
+            
+            if population_layer_name == "Select a population layer" or schools_layer_name == "Select school (point) layer":
+                self.display_error("Please select both the population and school (point) layers.")
+                return
+            
+            connection = self.connect_to_database()
+            cursor = connection.cursor()
+            
+            population_field = self.comboBox_populationField.currentText()
+            print(f"Selected Population Field: {population_field}")  # Debug statement
 
-        # Get the city layer and schools layer
-        city_layer = QgsProject.instance().mapLayersByName(selected_city_layer)[0]
-        schools_layer = QgsProject.instance().mapLayersByName(selected_schools_layer)[0]
+            if population_field == "Select a population field":
+                self.display_error("Please select a population field.")
+                return
+            
+            max_students_per_school = int(self.lineEdit_peoplePerSchool.text())
 
-        # Get the population field selected
-        selected_population_field = self.comboBox_populationField.currentText()
-        print(f"Chosen Population Field: {selected_population_field}")  # Debug statement
+            cursor.execute(sql.SQL("SELECT adm3_en, {population_field}, ST_Transform(geom, 4326) AS geom FROM {population_layer}").format(
+                population_field=sql.Identifier(population_field),
+                population_layer=sql.Identifier(population_layer_name)
+            ))
 
-        if selected_population_field == "Choose a population field":
-            self.display_error("Please choose a population field.")
-            return
+            city_features = cursor.fetchall()
 
-        # Get the number of people per school
-        people_per_school_value = int(self.lineEdit_peoplePerSchool.text())
+            results = []
 
-        # Perform "Count Points in Polygon" to calculate available schools
-        count_result = processing.run("native:countpointsinpolygon", {
-            'POLYGONS': city_layer,
-            'POINTS': schools_layer,
-            'FIELD': 'available_schools',  # Name for the count field
-            'OUTPUT': 'memory:'  # Temporary output
-        })
+            for feature in city_features:
+                area_name = feature[0]
+                population = feature[1]
+                geom = feature[2]
 
-        # Get the output layer with counted points
-        counted_points_layer = count_result['OUTPUT']
+                required_schools = round(population / max_students_per_school)
+                cursor.execute(sql.SQL("""
+                    SELECT COUNT(*) FROM {schools_layer}
+                    WHERE ST_Within(ST_Transform(geom, 4326), %s)
+                """).format(
+                    schools_layer=sql.Identifier(schools_layer_name)
+                ), [geom])
+                available_schools = cursor.fetchone()[0]
+                schools_to_add = max(0, round(required_schools - available_schools))
 
-        # Calculate the needed number of schools and write to CSV
-        csv_output_filename = os.path.join(os.path.expanduser('~'), 'schools_needed.csv')
-        with open(csv_output_filename, 'w', newline='') as csvfile:
-            fieldnames = ['Region', 'Schools Needed', 'Current Schools', 'Additional Schools']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                results.append([area_name, required_schools, available_schools, schools_to_add])
 
-            writer.writeheader()
-            for feature in counted_points_layer.getFeatures():
-                region_name = feature['ADM3_EN']  # Use the correct field name for area
-                population_count = feature[selected_population_field]
-                schools_needed = round(population_count / people_per_school_value)
-                current_schools = round(feature['available_schools'])
-                additional_schools = max(0, round(schools_needed - current_schools))
-                writer.writerow({'Region': region_name, 'Schools Needed': schools_needed, 'Current Schools': current_schools, 'Additional Schools': additional_schools})
+            cursor.close()
+            connection.close()
 
-        self.display_info(f"Needed schools calculation completed. Output saved to {csv_output_filename}")
+            # Save the results to a CSV file on the desktop
+            desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
+            save_path = os.path.join(desktop_path, 'needed_schools.csv')
+            with open(save_path, 'w', newline='') as csvfile:
+                fieldnames = ['Region', 'Required Schools', 'Available Schools', 'Additional Schools']
+                writer = csv.writer(csvfile)
+                writer.writerow(fieldnames)
+                writer.writerows(results)
+            self.display_info(f"Results saved to {save_path}.")
+
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.display_error(f"Error during calculation: {error}")
 
     def display_error(self, message):
-        """Show error message to the user."""
+        """Show an error message to the user."""
         from PyQt5.QtWidgets import QMessageBox
         QMessageBox.critical(self, "Error", message)
 
     def display_info(self, message):
-        """Show informational message to the user."""
+        """Show an informational message to the user."""
         from PyQt5.QtWidgets import QMessageBox
         QMessageBox.information(self, "Information", message)
