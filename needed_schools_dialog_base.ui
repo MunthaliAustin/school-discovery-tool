@@ -20,7 +20,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>City Layer</string>
+    <string>Population Layer</string>
    </property>
   </widget>
   <widget class="QComboBox" name="comboBox_cityLayer">
@@ -43,7 +43,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Schools Layer</string>
+    <string>School (Point) Layer</string>
    </property>
   </widget>
   <widget class="QComboBox" name="comboBox_schoolsLayer">
@@ -89,32 +89,29 @@
     </rect>
    </property>
    <property name="text">
-    <string>People Per School</string>
+    <string>Max # of Students</string>
    </property>
   </widget>
-  <widget class="QSpinBox" name="spinBox_peoplePerSchool">
+  <widget class="QLineEdit" name="lineEdit_peoplePerSchool">
    <property name="geometry">
     <rect>
      <x>120</x>
      <y>130</y>
-     <width>100</width>
+     <width>381</width>
      <height>25</height>
     </rect>
    </property>
-   <property name="minimum">
-    <number>1</number>
+   <property name="inputMask">
+    <string>99999</string>
    </property>
-   <property name="maximum">
-    <number>100000</number>
-   </property>
-   <property name="value">
-    <number>2000</number>
+   <property name="text">
+    <string>00</string>
    </property>
   </widget>
   <widget class="QPushButton" name="button_execute">
    <property name="geometry">
     <rect>
-     <x>10</x>
+     <x>400</x>
      <y>180</y>
      <width>100</width>
      <height>30</height>
