@@ -1,14 +1,13 @@
 from PyQt5.QtWidgets import QDialog
 from PyQt5.QtCore import QVariant
+from qgis.core import QgsProject, QgsVectorLayer, QgsField, QgsFeature, QgsGeometry
 import psycopg2
 from psycopg2 import sql
-import csv
-import os
 from .needed_schools_dialog_ui import Ui_neededSchoolsDialog
 
 class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
     def __init__(self, parent=None):
-        """Initialize the dialog and set up the UI."""
+        """Initialize the QDialog and set up the UI."""
         super().__init__(parent)
         self.setupUi(self)
 
@@ -73,7 +72,7 @@ class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
             self.display_error(f"Error retrieving population fields: {error}")
 
     def determine_needed_schools(self):
-        """Calculate the required number of schools based on the population and students per school."""
+        """Calculate the required number of schools based on the population and students per school, and generate a QGIS layer."""
         try:
             population_layer_name = self.comboBox_cityLayer.currentText()
             schools_layer_name = self.comboBox_schoolsLayer.currentText()
@@ -94,44 +93,54 @@ class NeededSchoolsDialog(QDialog, Ui_neededSchoolsDialog):
             
             max_students_per_school = int(self.lineEdit_peoplePerSchool.text())
 
-            cursor.execute(sql.SQL("SELECT adm3_en, {population_field}, ST_Transform(geom, 4326) AS geom FROM {population_layer}").format(
+            cursor.execute(sql.SQL("SELECT adm3_en, {population_field}, ST_AsText(geom) AS geom FROM {population_layer}").format(
                 population_field=sql.Identifier(population_field),
                 population_layer=sql.Identifier(population_layer_name)
             ))
 
             city_features = cursor.fetchall()
 
-            results = []
+            results_layer = QgsVectorLayer("Polygon?crs=EPSG:4326", "Needed Schools", "memory")
+            provider = results_layer.dataProvider()
+
+            provider.addAttributes([
+                QgsField("Area", QVariant.String),
+                QgsField("Required_Schools", QVariant.Int),
+                QgsField("Current_Schools", QVariant.Int),
+                QgsField("Added_Schools", QVariant.Int)
+            ])
+            results_layer.updateFields()
+
+            features = []
 
             for feature in city_features:
                 area_name = feature[0]
                 population = feature[1]
-                geom = feature[2]
+                geom_wkt = feature[2]
+                geom = QgsGeometry.fromWkt(geom_wkt)  # Convert WKT to QgsGeometry
 
                 required_schools = round(population / max_students_per_school)
                 cursor.execute(sql.SQL("""
                     SELECT COUNT(*) FROM {schools_layer}
-                    WHERE ST_Within(ST_Transform(geom, 4326), %s)
+                    WHERE ST_Within(ST_Transform(geom, 4326), ST_GeomFromText(%s, 4326))
                 """).format(
                     schools_layer=sql.Identifier(schools_layer_name)
-                ), [geom])
-                available_schools = cursor.fetchone()[0]
-                schools_to_add = max(0, round(required_schools - available_schools))
+                ), [geom_wkt])
+                current_schools = cursor.fetchone()[0]
+                added_schools = max(0, round(required_schools - current_schools))
 
-                results.append([area_name, required_schools, available_schools, schools_to_add])
+                feat = QgsFeature()
+                feat.setGeometry(geom)
+                feat.setAttributes([area_name, required_schools, current_schools, added_schools])
+                features.append(feat)
+
+            provider.addFeatures(features)
 
             cursor.close()
             connection.close()
 
-            # Save the results to a CSV file on the desktop
-            desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
-            save_path = os.path.join(desktop_path, 'needed_schools.csv')
-            with open(save_path, 'w', newline='') as csvfile:
-                fieldnames = ['Region', 'Required Schools', 'Available Schools', 'Additional Schools']
-                writer = csv.writer(csvfile)
-                writer.writerow(fieldnames)
-                writer.writerows(results)
-            self.display_info(f"Results saved to {save_path}.")
+            QgsProject.instance().addMapLayer(results_layer)
+            self.display_info("Required schools calculation completed and results layer added to the QGIS project.")
 
         except (Exception, psycopg2.DatabaseError) as error:
             self.display_error(f"Error during calculation: {error}")
